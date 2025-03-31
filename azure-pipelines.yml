@@ -51,6 +51,7 @@ stages:
               node convertJsonToCsv.js
             displayName: 'Convert JSON to CSV for Salesforce Upload'
 
+          # IMPORTANT: Verify that the CSV headers exactly match the API names of fields on Account.
           - ${{ if eq(parameters.targetEnvironment, 'production') }}:
             - script: |
                 echo "Deploying data to Salesforce with test execution..."
