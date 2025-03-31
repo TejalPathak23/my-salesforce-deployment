@@ -1,0 +1,64 @@
+trigger:
+  - main
+
+parameters:
+  - name: targetEnvironment
+    displayName: "Select Deployment Environment"
+    type: string
+    default: sandbox
+    values:
+      - sandbox
+      - production
+
+variables:
+  - name: loginUrl
+    ${{ if eq(parameters.targetEnvironment, 'production') }}:
+      value: 'https://login.salesforce.com'
+    ${{ else }}:
+      value: 'https://test.salesforce.com'
+
+stages:
+  - stage: DeployJSONDataToSalesforce
+    displayName: "Deploy JSON Data to Salesforce"
+    jobs:
+      - job: SalesforceDeployment
+        displayName: "Salesforce Authentication and JSON Deployment"
+        pool:
+          vmImage: 'ubuntu-latest'
+        steps:
+          - task: NodeTool@0
+            inputs:
+              versionSpec: '16.x'
+            displayName: 'Install Node.js'
+
+          - script: |
+              echo "Installing Salesforce CLI..."
+              npm install sfdx-cli --global
+            displayName: 'Install Salesforce CLI'
+
+          - script: |
+              echo "Authenticating to Salesforce using device login on URL: $(loginUrl)"
+              sfdx force:auth:device:login -r $(loginUrl) --setdefaultusername
+            displayName: 'Salesforce Device Login'
+
+          - script: |
+              echo "Installing Node.js dependencies..."
+              npm install json2csv
+            displayName: 'Install JSON to CSV Converter Dependencies'
+
+          - script: |
+              echo "Converting JSON to Salesforce sObject format..."
+              node convertJsonToCsv.js
+            displayName: 'Convert JSON to CSV for Salesforce Upload'
+
+          - ${{ if eq(parameters.targetEnvironment, 'production') }}:
+            - script: |
+                echo "Deploying data to Salesforce with test execution..."
+                sfdx force:data:bulk:upsert -s CustomObject__c -f output.csv -i External_Id__c --wait 10 --verbose
+              displayName: 'Deploy Data to Salesforce (RunLocalTests)'
+
+          - ${{ if ne(parameters.targetEnvironment, 'production') }}:
+            - script: |
+                echo "Deploying data to Salesforce without running tests..."
+                sfdx force:data:bulk:upsert -s CustomObject__c -f output.csv -i External_Id__c --wait 10 --verbose
+              displayName: 'Deploy Data to Salesforce (NoTestRun)'
