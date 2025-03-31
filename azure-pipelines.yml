@@ -9,6 +9,25 @@ parameters:
     values:
       - sandbox
       - production
+  - name: deploymentType
+    displayName: "Deployment Type"
+    type: string
+    default: data
+    values:
+      - data
+      - metadata
+  - name: sObjectName
+    displayName: "SObject Name (for data deployment)"
+    type: string
+    default: Account
+  - name: externalIdField
+    displayName: "External ID Field (for data deployment)"
+    type: string
+    default: External_Id__c
+  - name: sourcePath
+    displayName: "Source Path (for metadata deployment)"
+    type: string
+    default: force-app
 
 variables:
   - name: loginUrl
@@ -18,11 +37,11 @@ variables:
       value: 'https://test.salesforce.com'
 
 stages:
-  - stage: DeployJSONDataToSalesforce
-    displayName: "Deploy JSON Data to Salesforce"
+  - stage: DeployToSalesforce
+    displayName: "Deploy to Salesforce"
     jobs:
       - job: SalesforceDeployment
-        displayName: "Salesforce Authentication and JSON Deployment"
+        displayName: "Salesforce Deployment"
         pool:
           vmImage: 'ubuntu-latest'
         steps:
@@ -41,25 +60,29 @@ stages:
               sfdx force:auth:device:login -r $(loginUrl) --setdefaultusername
             displayName: 'Salesforce Device Login'
 
-          - script: |
-              echo "Installing Node.js dependencies..."
-              npm install json2csv
-            displayName: 'Install JSON to CSV Converter Dependencies'
-
-          - script: |
-              echo "Converting JSON to Salesforce sObject format..."
-              node convertJsonToCsv.js
-            displayName: 'Convert JSON to CSV for Salesforce Upload'
-
-          # IMPORTANT: Verify that the CSV headers exactly match the API names of fields on Account.
-          - ${{ if eq(parameters.targetEnvironment, 'production') }}:
+          # --- Data Deployment Steps ---
+          - ${{ if eq(parameters.deploymentType, 'data') }}:
             - script: |
-                echo "Deploying data to Salesforce with test execution..."
-                sfdx force:data:bulk:upsert -s Account -f output.csv -i External_Id__c --wait 10
-              displayName: 'Deploy Data to Salesforce (RunLocalTests)'
-
-          - ${{ if ne(parameters.targetEnvironment, 'production') }}:
+                echo "Installing Node.js dependencies for data deployment..."
+                npm install json2csv
+              displayName: 'Install JSON to CSV Converter Dependencies'
             - script: |
-                echo "Deploying data to Salesforce without running tests..."
-                sfdx force:data:bulk:upsert -s Account -f output.csv -i External_Id__c --wait 10
-              displayName: 'Deploy Data to Salesforce (NoTestRun)'
+                echo "Converting JSON to CSV..."
+                node convertJsonToCsv.js
+              displayName: 'Convert JSON to CSV'
+            - script: |
+                echo "Deploying data to Salesforce..."
+                sfdx force:data:bulk:upsert -s ${{ parameters.sObjectName }} -f output.csv -i ${{ parameters.externalIdField }} --wait 10
+              displayName: 'Deploy Data to Salesforce'
+
+          # --- Metadata Deployment Steps ---
+          - ${{ if and(eq(parameters.deploymentType, 'metadata'), eq(parameters.targetEnvironment, 'production')) }}:
+            - script: |
+                echo "Deploying metadata to Salesforce with test execution..."
+                sfdx force:source:deploy -p ${{ parameters.sourcePath }} --testlevel RunLocalTests
+              displayName: 'Deploy Metadata to Salesforce (RunLocalTests)'
+          - ${{ if and(eq(parameters.deploymentType, 'metadata'), ne(parameters.targetEnvironment, 'production')) }}:
+            - script: |
+                echo "Deploying metadata to Salesforce without running tests..."
+                sfdx force:source:deploy -p ${{ parameters.sourcePath }} --testlevel NoTestRun
+              displayName: 'Deploy Metadata to Salesforce (NoTestRun)'
