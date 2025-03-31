@@ -1,0 +1,14 @@
+[
+  {
+    "External_Id__c": "EXT-001",
+    "Name": "Test Account",
+    "Industry": "Technology",
+    "AnnualRevenue": 5000000
+  },
+  {
+    "External_Id__c": "EXT-002",
+    "Name": "Another Account",
+    "Industry": "Finance",
+    "AnnualRevenue": 7500000
+  }
+]
