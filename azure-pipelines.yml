@@ -54,11 +54,11 @@ stages:
           - ${{ if eq(parameters.targetEnvironment, 'production') }}:
             - script: |
                 echo "Deploying data to Salesforce with test execution..."
-                sfdx force:data:bulk:upsert -s CustomObject__c -f output.csv -i External_Id__c --wait 10
+                sfdx force:data:bulk:upsert -s Account -f output.csv -i External_Id__c --wait 10
               displayName: 'Deploy Data to Salesforce (RunLocalTests)'
 
           - ${{ if ne(parameters.targetEnvironment, 'production') }}:
             - script: |
                 echo "Deploying data to Salesforce without running tests..."
-                sfdx force:data:bulk:upsert -s CustomObject__c -f output.csv -i External_Id__c --wait 10
+                sfdx force:data:bulk:upsert -s Account -f output.csv -i External_Id__c --wait 10
               displayName: 'Deploy Data to Salesforce (NoTestRun)'
